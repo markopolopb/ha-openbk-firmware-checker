@@ -1,0 +1,27 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Create zip
+        run: |
+          cd custom_components
+          zip -r ../openbk_firmware_checker.zip openbk_firmware_checker/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: openbk_firmware_checker.zip
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
