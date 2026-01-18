@@ -20,13 +20,20 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class OpenBKFirmwareCoordinator(DataUpdateCoordinator):
-    """Class to manage fetching OpenBK firmware data from GitHub."""
+    """Class to manage fetching OpenBK firmware data from GitHub.
+    
+    This coordinator fetches the latest firmware release from GitHub API
+    ONCE per update interval (default 1 hour) and shares the data with
+    ALL device entities. This prevents hitting GitHub's rate limit of
+    60 requests/hour for unauthenticated requests.
+    """
 
     def __init__(self, hass: HomeAssistant, update_interval: int = DEFAULT_UPDATE_INTERVAL) -> None:
         """Initialize."""
         self.hass = hass
         self.latest_release: dict[str, Any] = {}
         self.firmware_versions: dict[str, str] = {}
+        self._last_fetch_success = False
         
         super().__init__(
             hass,
@@ -34,16 +41,51 @@ class OpenBKFirmwareCoordinator(DataUpdateCoordinator):
             name="OpenBK Firmware Coordinator",
             update_interval=timedelta(seconds=update_interval),
         )
+        
+        _LOGGER.info(
+            "OpenBK Firmware Coordinator initialized with %d second update interval to avoid GitHub API rate limits",
+            update_interval,
+        )
 
     async def _async_update_data(self) -> dict[str, Any]:
-        """Fetch latest firmware versions from GitHub."""
+        """Fetch latest firmware versions from GitHub API.
+        
+        This method is called once per update interval and shares the result
+        with all OpenBK device entities, preventing rate limit issues.
+        
+        GitHub API rate limits:
+        - Unauthenticated: 60 requests/hour per IP
+        - Authenticated: 5000 requests/hour
+        """
+        _LOGGER.debug("Fetching latest firmware data from GitHub (shared for all devices)")
+        
         try:
             async with async_timeout.timeout(30):
                 async with aiohttp.ClientSession() as session:
                     async with session.get(GITHUB_API_URL) as response:
+                        # Check rate limit headers
+                        rate_limit_remaining = response.headers.get("X-RateLimit-Remaining")
+                        rate_limit_reset = response.headers.get("X-RateLimit-Reset")
+                        
+                        if rate_limit_remaining:
+                            _LOGGER.debug(
+                                "GitHub API rate limit: %s requests remaining (resets at: %s)",
+                                rate_limit_remaining,
+                                rate_limit_reset,
+                            )
+                        
+                        if response.status == 403:
+                            error_msg = "GitHub API rate limit exceeded. Using cached data if available."
+                            _LOGGER.warning(error_msg)
+                            if self._last_fetch_success:
+                                # Return cached data
+                                _LOGGER.info("Returning cached firmware data")
+                                return {"release": self.latest_release, "versions": self.firmware_versions}
+                            raise UpdateFailed(error_msg)
+                        
                         if response.status != 200:
                             raise UpdateFailed(
-                                f"Error fetching data from GitHub: {response.status}"
+                                f"Error fetching data from GitHub: HTTP {response.status}"
                             )
                         
                         release_data = await response.json()
@@ -98,10 +140,14 @@ class OpenBKFirmwareCoordinator(DataUpdateCoordinator):
                                         break
                         
                         self.firmware_versions = firmware_info
+                        self._last_fetch_success = True
                         
-                        _LOGGER.debug(
-                            "Fetched firmware versions: %s", self.firmware_versions
+                        _LOGGER.info(
+                            "Successfully fetched firmware versions from GitHub (shared with all %d platform(s)): %s",
+                            len(firmware_info),
+                            ", ".join([f"{k}={v['version']}" for k, v in firmware_info.items()]),
                         )
+                        _LOGGER.debug("Full firmware data: %s", self.firmware_versions)
                         
                         return {
                             "release": release_data,
@@ -109,9 +155,19 @@ class OpenBKFirmwareCoordinator(DataUpdateCoordinator):
                         }
                         
         except aiohttp.ClientError as err:
-            raise UpdateFailed(f"Error communicating with GitHub API: {err}") from err
+            error_msg = f"Error communicating with GitHub API: {err}"
+            _LOGGER.error(error_msg)
+            if self._last_fetch_success:
+                _LOGGER.info("Returning cached firmware data after communication error")
+                return {"release": self.latest_release, "versions": self.firmware_versions}
+            raise UpdateFailed(error_msg) from err
         except Exception as err:
-            raise UpdateFailed(f"Unexpected error: {err}") from err
+            error_msg = f"Unexpected error fetching firmware data: {err}"
+            _LOGGER.error(error_msg)
+            if self._last_fetch_success:
+                _LOGGER.info("Returning cached firmware data after unexpected error")
+                return {"release": self.latest_release, "versions": self.firmware_versions}
+            raise UpdateFailed(error_msg) from err
 
     def get_latest_version(self, platform: str) -> str | None:
         """Get the latest firmware version for a platform."""

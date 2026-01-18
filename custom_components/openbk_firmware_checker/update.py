@@ -29,7 +29,11 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up OpenBK update platform."""
+    """Set up OpenBK update platform.
+    
+    All device entities share a single coordinator instance that fetches
+    firmware data from GitHub API once per hour, preventing rate limit issues.
+    """
     data = hass.data[DOMAIN][entry.entry_id]
     coordinator: OpenBKFirmwareCoordinator = data["coordinator"]
     config_entry: ConfigEntry = data["entry"]
@@ -105,6 +109,7 @@ class OpenBKUpdateEntity(CoordinatorEntity, UpdateEntity):
     """Representation of an OpenBK device update entity."""
 
     _attr_has_entity_name = True
+    _attr_icon = "mdi:chip"
     _attr_supported_features = (
         UpdateEntityFeature.INSTALL
         | UpdateEntityFeature.PROGRESS

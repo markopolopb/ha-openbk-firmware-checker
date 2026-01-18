@@ -28,7 +28,7 @@ CONF_UPDATE_INTERVAL = "update_interval"
 CONF_SERVER_URL = "server_url"
 
 # Defaults
-DEFAULT_UPDATE_INTERVAL = 3600  # 1 hour in seconds
+DEFAULT_UPDATE_INTERVAL = 3600  # 1 hour in seconds - chosen to avoid GitHub API rate limits (60 req/hour)
 DEFAULT_OTA_TYPE = OTA_TYPE_RBL
 
 # MQTT Topics

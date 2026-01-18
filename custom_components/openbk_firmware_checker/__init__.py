@@ -25,7 +25,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     update_interval = entry.options.get(CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL)
     _LOGGER.debug("Update interval: %s seconds", update_interval)
     
-    # Create coordinator
+    # Create centralized coordinator that fetches GitHub data once per interval
+    # This prevents rate limiting issues by sharing data across all device entities
+    # GitHub API limit: 60 requests/hour for unauthenticated requests
     coordinator = OpenBKFirmwareCoordinator(hass, update_interval)
     
     # Fetch initial data
