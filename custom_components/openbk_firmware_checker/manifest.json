@@ -1,0 +1,13 @@
+{
+  "domain": "openbk_firmware_checker",
+  "name": "OpenBK Firmware Checker",
+  "codeowners": ["@markopolopb"],
+  "config_flow": true,
+  "dependencies": ["mqtt"],
+  "documentation": "https://github.com/markopolopb/ha-openbk-firmware-checker",
+  "integration_type": "device",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/markopolopb/ha-openbk-firmware-checker/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}
