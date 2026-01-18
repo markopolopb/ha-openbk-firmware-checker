@@ -18,8 +18,8 @@ jobs:
 
       - name: Create zip
         run: |
-          cd custom_components
-          zip -r ../openbk_firmware_checker.zip openbk_firmware_checker/
+          cd custom_components/openbk_firmware_checker
+          zip -r ../../openbk_firmware_checker.zip ./ -x "*.git*" "*.DS_Store"
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
