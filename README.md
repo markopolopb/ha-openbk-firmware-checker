@@ -1,184 +1,176 @@
 # OpenBK Firmware Checker for Home Assistant
 
-Custom component for Home Assistant that automatically checks for firmware updates for OpenBK devices and allows easy OTA updates via MQTT.
+[![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/custom-components/hacs)
+[![GitHub release](https://img.shields.io/github/release/markopolopb/ha-openbk-firmware-checker.svg)](https://github.com/markopolopb/ha-openbk-firmware-checker/releases)
+[![License](https://img.shields.io/github/license/markopolopb/ha-openbk-firmware-checker.svg)](LICENSE)
+
+Custom integration for Home Assistant that automatically checks for firmware updates for OpenBK devices and enables easy OTA updates via MQTT.
 
 ## Features
 
 - 🔍 **Automatic device discovery** - Discovers OpenBK devices via MQTT
-- 📊 **Firmware version checking** - Periodically checks GitHub for latest firmware releases
+- 📊 **Firmware version checking** - Periodically checks GitHub for latest firmware releases  
 - 🔔 **Update notifications** - Integrates with Home Assistant's Update entity
 - 🚀 **One-click updates** - Install firmware updates directly from Home Assistant UI
-- � **Installation progress tracking** - Real-time progress bar during firmware updates
-- 🔧 **Configurable update interval** - Set how often to check for new versions
-- 🌐 **Local firmware serving** - Downloads and serves firmware files via local HTTP to avoid long URLs
-- 📱 **Supported platforms**: BK7231T, BK7231N, BK7231M, BK7231U, BK7238
+- ⏱️ **Installation progress tracking** - Real-time progress bar during firmware updates
+- 🔧 **Configurable update interval** - Set how often to check for new versions (in hours)
+- 🌐 **Local firmware serving** - Downloads and serves firmware files via local HTTP
+- 💾 **Automatic backup** - Saves previous firmware version before updates
+- 🔙 **Rollback support** - Restore previous firmware version if needed
+- 📝 **Detailed release information** - View changes, release notes, and publication date
+- 🔗 **GitHub integration** - Direct links to release notes and firmware downloads
+- 📊 **Diagnostic sensors** - Always-visible sensors showing firmware info
+- 🎯 **Install specific versions** - Flash any firmware version from GitHub releases
+- 🔧 **Supported platforms**: BK7231T, BK7231N, BK7231M, BK7231U, BK7238
 
-## Installation
+## Quick Start
 
-### HACS (Recommended)
+### Installation
+
+#### HACS (Recommended)
 
 1. Add this repository to HACS as a custom repository
 2. Search for "OpenBK Firmware Checker" in HACS
 3. Click Install
 4. Restart Home Assistant
 
-### Manual Installation
+#### Manual Installation
 
 1. Copy the `custom_components/openbk_firmware_checker` directory to your Home Assistant's `custom_components` directory
 2. Restart Home Assistant
 
-## Configuration
+### Configuration
 
-### Step 1: Configure OpenBK Devices MQTT
+1. **Configure MQTT on OpenBK devices** - See [MQTT Configuration Guide](docs/MQTT_CONFIGURATION.md)
+2. **Add Integration in Home Assistant**:
+   - Go to Settings → Devices & Services → Add Integration
+   - Search for "OpenBK Firmware Checker"
+   - Configure update interval (default: 24 hours)
+   - **Optionally set custom server URL** (recommended if devices can't resolve `homeassistant.local`)
 
-Before using this integration, you need to configure MQTT on your OpenBK devices. 
-
-**Recommended Configuration:**
-
-1. Open your OpenBK device web interface
-2. Go to **Config** → **MQTT**
-3. Configure the following settings:
-
-```
-Host: <your_mqtt_broker_ip>
-Port: 1883
-Client Topic (Base Topic): <device_name>
-Group Topic (Secondary Topic): openbk_devices
-User: <mqtt_username>
-Password: <mqtt_password>
-```
-
-**Important:** 
-- Each device should have a unique **Client Topic** (Base Topic)
-- Optionally configure **Group Topic** for manual bulk updates via MQTT (outside of this integration)
-- Keep the default publish/receive topic structure
-
-**Example Configuration:**
-
-For a device named "bathroom_fan":
-- **Client Topic**: `bathroom_fan`
-- **Group Topic**: `openbk_devices` (optional, for manual MQTT commands)
-- **Publish data topic**: `bathroom_fan/[Channel]/get`
-- **Receive data topic**: `bathroom_fan/[Channel]/set`
-
-This way:
-- Device publishes its state to: `tele/bathroom_fan/STATE`
-- Integration sends OTA commands to: `cmnd/bathroom_fan/ota_http` (single device)
-
-### Step 2: Install Integration in Home Assistant
-
-1. Go to **Settings** → **Devices & Services**
-2. Click **Add Integration**
-3. Search for "OpenBK Firmware Checker"
-4. Configure the update interval (default: 3600 seconds / 1 hour)
+**Important**: If your devices cannot resolve `homeassistant.local` hostname (mDNS), configure the Server URL:
+- Go to Settings → Devices & Services → OpenBK Firmware Checker → Configure
+- Set Server URL to your Home Assistant IP: `http://192.168.1.100:8123`
+- Use HTTP (not HTTPS) - OpenBK devices don't support HTTPS
+- See [Troubleshooting Guide](docs/TROUBLESHOOTING.md#device-cannot-resolve-homeassistantlocal) for details
 
 ### Device Discovery
 
-Devices are automatically discovered via MQTT. The integration listens for MQTT messages on:
-- Topic: `{device_id}/build`
+Devices are automatically discovered via MQTT when they publish to `{device_id}/build` topic.
 
-Make sure your OpenBK devices publish build information to this topic. The message should contain:
-- Direct string value with format: `OpenBK{Platform} {Version} {BuildDate} {BuildTime}`
-
-Example MQTT message published by device:
+Example MQTT message from device:
 ```
 Topic: bathroom_fan/build
 Payload: OpenBK7231N 1.18.230 Dec 20 2025 19:12:21
 ```
 
-The integration will automatically:
-- Detect the device name from the MQTT topic (e.g., `bathroom_fan`)
-- Extract the platform (e.g., `BK7231N`) and current version (e.g., `1.18.230`)
+The integration will:
+- Detect device name from MQTT topic (e.g., `bathroom_fan`)
+- Extract platform (e.g., `BK7231N`) and current version (e.g., `1.18.230`)
 - Create an Update entity in Home Assistant
 - Compare with the latest version from GitHub
 
 ## Usage
 
-### View Available Updates
+### View Updates
 
-Once configured, the integration will:
-1. Monitor MQTT for OpenBK devices
-2. Check GitHub for latest firmware versions
-3. Create Update entities for each discovered device
-4. Show available updates in the Home Assistant UI
+Updates appear in:
+- Settings → Updates dashboard
+- Settings → Devices & Services → OpenBK Firmware Checker
+- Device cards when updates are available
+
+### Diagnostic Sensors
+
+The integration provides sensors that are **always visible**:
+
+- **Latest Firmware Release Sensor** - Shows current GitHub release information
+  - Available for all platforms (BK7231T, BK7231N, etc.)
+  - Includes release URL, date, and platform-specific details
+  
+- **Update Entities** (per device) - Show detailed information per device
+  - Changes section extracted from release notes
+  - Release info, firmware details, backup status
+  - Visible on device card when updates available
 
 ### Install Updates
 
-From the Home Assistant UI:
-1. Go to **Settings** → **Devices & Services** → **OpenBK Firmware Checker**
-2. Click on a device with available update
+1. Go to Settings → Devices & Services → OpenBK Firmware Checker
+2. Click on device with available update
 3. Click **Install**
 
 The integration will:
-1. Download the firmware from GitHub to Home Assistant
-2. Serve the firmware via local HTTP endpoint
-3. Send an MQTT command to the device: `cmnd/{device_id}/ota_http` with the local firmware URL
-4. Track installation progress with real-time updates
-5. Automatically detect completion when device reboots with new version
+1. Create automatic backup of current version
+2. Download firmware from GitHub
+3. Serve firmware via local HTTP endpoint
+4. Send MQTT command to device
+5. Track installation progress
+6. Detect completion when device reboots
 
-**Note:** Each device must be updated individually through the Home Assistant UI. To update multiple devices, click "Install" on each device's update entity.
+### Rollback to Previous Version
 
-### Manual Update via Automation
-
-You can trigger updates for individual devices via automations:
+If an update causes issues, rollback to previous version:
 
 ```yaml
-service: update.install
+service: openbk_firmware_checker.rollback_firmware
 target:
   entity_id: update.bathroom_fan_firmware
 ```
 
-### Advanced: Manual Bulk Updates via MQTT
+**Requirements**:
+- Previous version backed up during last update
+- `backup_available` attribute must be `true`
+- Previous version must still exist on GitHub releases
 
-If you need to update multiple devices at once (outside of this integration), you can manually publish MQTT commands.
+### Install Specific Version
 
-**Update a single device manually:**
-
-```yaml
-service: mqtt.publish
-data:
-  topic: cmnd/bathroom_fan/ota_http
-  payload: http://homeassistant.local:8123/api/openbk_firmware/OpenBK7231N_1.18.247.rbl
-```
-
-**Update all devices with Group Topic (requires same platform for all devices):**
+Install any firmware version from GitHub releases:
 
 ```yaml
-service: mqtt.publish
+service: openbk_firmware_checker.install_firmware_version
 data:
-  topic: cmnd/openbk_devices/ota_http
-  payload: http://homeassistant.local:8123/api/openbk_firmware/OpenBK7231N_1.18.247.rbl
+  entity_id: update.bathroom_fan_firmware
+  version: "1.18.230"
 ```
 
-**⚠️ Important:** 
-- Bulk updates via Group Topic bypass this integration's download and serving mechanism
-- You must manually download firmware and construct the correct URL
-- All devices in the group must use the same platform (e.g., all BK7231N)
-- No progress tracking or automatic completion detection for manual MQTT commands
+**Use cases**:
+- Downgrade to older version
+- Install known stable version
+- Skip problematic releases
+
+### Entity Attributes
+
+Update entities provide detailed attributes:
+
+| Attribute | Description |
+|-----------|-------------|
+| `release_url` | Direct link to GitHub release notes |
+| `release_date` | ISO 8601 formatted publication date |
+| `changes` | Extracted Changes section from release notes |
+| `release_version` | GitHub tag name (e.g., "1.18.247") |
+| `firmware_size` | Firmware file size in bytes |
+| `firmware_filename` | Complete firmware filename |
+| `firmware_download_url` | Direct download URL from GitHub |
+| `platform` | Device platform (BK7231T, BK7231N, etc.) |
+| `device_id` | Unique device identifier |
+| `previous_version` | Last installed version (for rollback) |
+| `backup_available` | Whether rollback is possible |
 
 ## Configuration Options
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `update_interval` | integer | 3600 | How often to check for firmware updates (in seconds) |
-| `server_url` | string | (auto) | Custom URL for serving firmware files to devices. Leave empty to use Home Assistant's configured URL. Example: `http://192.168.1.100:8123` |
+| `update_interval` | integer | 24 | How often to check for firmware updates (in hours) |
+| `server_url` | string | (auto) | Custom URL for serving firmware files. Leave empty to use Home Assistant's configured URL |
 
-## MQTT Topics
+## Documentation
 
-| Topic Pattern | Direction | Purpose | Description |
-|--------------|-----------|---------|-------------|
-| `{device_id}/build` | Subscribe (HA) | Discovery | Device publishes build info including platform and version |
-| `cmnd/{device_id}/ota_http` | Publish (HA) | Single Update | Send OTA command to specific device (used by integration) |
-| `cmnd/{group_topic}/ota_http` | Publish (Manual) | Bulk Update | Send OTA command to all devices in group (manual MQTT only, outside integration) |
-
-**Configuration Tips:**
-- Each device needs a unique **Client Topic** (e.g., device name like `bathroom_fan`)
-- Optionally set a **Group Topic** (e.g., `openbk_devices`) if you plan to use manual MQTT bulk updates
-- The integration always updates devices individually via their Client Topic
+- **[MQTT Configuration](docs/MQTT_CONFIGURATION.md)** - Detailed MQTT setup guide for OpenBK devices
+- **[Automation Examples](docs/AUTOMATIONS.md)** - Ready-to-use automation examples
+- **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Common issues and solutions
+- **[Lovelace Examples](docs/LOVELACE_EXAMPLES.md)** - UI card examples for dashboards
+- **[Changelog](CHANGELOG.md)** - Version history and changes
 
 ## Supported Platforms
-
-The integration supports the following OpenBK platforms:
 
 - **BK7231T** - Uses `OpenBK7231T_*.rbl` firmware files
 - **BK7231N** - Uses `OpenBK7231N_*.rbl` firmware files
@@ -186,28 +178,43 @@ The integration supports the following OpenBK platforms:
 - **BK7231U** - Uses `OpenBK7231U_*.rbl` firmware files
 - **BK7238** - Uses `OpenBK7238_*.rbl` firmware files
 
+## Example Automation
+
+**Notify when new firmware is available:**
+
+```yaml
+automation:
+  - alias: "OpenBK - Firmware Update Notification"
+    trigger:
+      - platform: state
+        entity_id: update.bathroom_fan_firmware
+        to: "on"
+    action:
+      - service: notify.mobile_app
+        data:
+          title: "Firmware Update Available"
+          message: >
+            New firmware {{ state_attr('update.bathroom_fan_firmware', 'release_version') }} 
+            is available for {{ state_attr('update.bathroom_fan_firmware', 'device_id') }}.
+          data:
+            url: "{{ state_attr('update.bathroom_fan_firmware', 'release_url') }}"
+```
+
+More examples in [Automation Examples](docs/AUTOMATIONS.md).
+
 ## Troubleshooting
 
-### Devices Not Discovered
+**Common Issues:**
+- Devices not discovered → Check [MQTT Configuration](docs/MQTT_CONFIGURATION.md)
+- Updates not showing → Wait for update interval or force refresh
+- Installation fails → Verify network connectivity and MQTT
 
-1. Check that MQTT integration is working in Home Assistant
-2. Verify your OpenBK devices are publishing to `{device_id}/build` topic
-3. Check the MQTT message format: `OpenBK{Platform} {Version} {BuildDate} {BuildTime}`
-4. Enable debug logging (see below)
-
-### Updates Not Showing
-
-1. Check GitHub connectivity from Home Assistant
-2. Verify the update interval hasn't been set too high
-3. Force a coordinator refresh from Developer Tools
+See [Troubleshooting Guide](docs/TROUBLESHOOTING.md) for detailed solutions.
 
 ### Debug Logging
 
-Add to your `configuration.yaml`:
-
 ```yaml
 logger:
-  default: info
   logs:
     custom_components.openbk_firmware_checker: debug
 ```
@@ -218,13 +225,19 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-MIT License
+MIT License - See [LICENSE](LICENSE) file for details
 
 ## Credits
 
-- OpenBK Project: https://github.com/openshwprojects/OpenBK7231T_App
-- Home Assistant: https://www.home-assistant.io/
+- **OpenBK Project**: https://github.com/openshwprojects/OpenBK7231T_App
+- **Home Assistant**: https://www.home-assistant.io/
 
 ## Support
 
-For issues and feature requests, please use the [GitHub issue tracker](https://github.com/markopolopb/ha-openbk-firmware-checker/issues).
+- **Documentation**: Check [docs/](docs/) folder for detailed guides
+- **Issues**: Use [GitHub issue tracker](https://github.com/markopolopb/ha-openbk-firmware-checker/issues)
+- **Community**: Home Assistant Community Forum
+
+---
+
+**Made with ❤️ for the Home Assistant and OpenBK communities**

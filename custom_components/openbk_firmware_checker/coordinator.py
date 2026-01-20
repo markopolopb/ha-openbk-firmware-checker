@@ -12,6 +12,8 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .const import (
     GITHUB_API_URL,
+    GITHUB_REPO_OWNER,
+    GITHUB_REPO_NAME,
     PLATFORM_FIRMWARE_MAP,
     DEFAULT_UPDATE_INTERVAL,
 )
@@ -29,22 +31,31 @@ class OpenBKFirmwareCoordinator(DataUpdateCoordinator):
     """
 
     def __init__(self, hass: HomeAssistant, update_interval: int = DEFAULT_UPDATE_INTERVAL) -> None:
-        """Initialize."""
+        """Initialize.
+        
+        Args:
+            hass: Home Assistant instance
+            update_interval: Update interval in hours (not seconds)
+        """
         self.hass = hass
         self.latest_release: dict[str, Any] = {}
         self.firmware_versions: dict[str, str] = {}
         self._last_fetch_success = False
         
+        # Convert hours to seconds for timedelta
+        interval_seconds = update_interval * 3600
+        
         super().__init__(
             hass,
             _LOGGER,
             name="OpenBK Firmware Coordinator",
-            update_interval=timedelta(seconds=update_interval),
+            update_interval=timedelta(seconds=interval_seconds),
         )
         
         _LOGGER.info(
-            "OpenBK Firmware Coordinator initialized with %d second update interval to avoid GitHub API rate limits",
+            "OpenBK Firmware Coordinator initialized with %d hour(s) update interval (%d seconds)",
             update_interval,
+            interval_seconds,
         )
 
     async def _async_update_data(self) -> dict[str, Any]:
@@ -180,3 +191,86 @@ class OpenBKFirmwareCoordinator(DataUpdateCoordinator):
         if platform in self.firmware_versions:
             return self.firmware_versions[platform].get("download_url")
         return None
+
+    async def get_firmware_for_version(
+        self, platform: str, version: str
+    ) -> dict[str, Any] | None:
+        """Get firmware download info for a specific version from GitHub releases.
+        
+        This is used for backup/rollback functionality to download older versions.
+        """
+        _LOGGER.info(
+            "Searching for firmware version %s for platform %s",
+            version,
+            platform,
+        )
+        
+        try:
+            # Get all releases from GitHub
+            releases_url = f"https://api.github.com/repos/{GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}/releases"
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.get(releases_url) as response:
+                    if response.status != 200:
+                        _LOGGER.error(
+                            "Failed to fetch releases from GitHub: HTTP %s",
+                            response.status,
+                        )
+                        return None
+                    
+                    releases = await response.json()
+                    firmware_prefix = PLATFORM_FIRMWARE_MAP.get(platform)
+                    
+                    if not firmware_prefix:
+                        _LOGGER.error("Unknown platform: %s", platform)
+                        return None
+                    
+                    # Search through releases for matching version
+                    for release in releases:
+                        release_version = release.get("tag_name", "").lstrip("v")
+                        
+                        # Check if this release contains the version we're looking for
+                        assets = release.get("assets", [])
+                        for asset in assets:
+                            name = asset.get("name", "")
+                            if name.startswith(f"{firmware_prefix}_") and name.endswith(".rbl"):
+                                # Extract version from filename
+                                match = re.search(r"_(\d+\.\d+\.\d+)\.rbl", name)
+                                if match:
+                                    firmware_version = match.group(1)
+                                    if firmware_version == version:
+                                        download_url = asset.get("browser_download_url", "")
+                                        
+                                        # Convert to HTTP for OpenBK compatibility
+                                        if download_url.startswith("https://"):
+                                            download_url = download_url.replace("https://", "http://", 1)
+                                        
+                                        _LOGGER.info(
+                                            "Found firmware %s for platform %s in release %s",
+                                            version,
+                                            platform,
+                                            release_version,
+                                        )
+                                        
+                                        return {
+                                            "version": firmware_version,
+                                            "download_url": download_url,
+                                            "filename": name,
+                                            "size": asset.get("size", 0),
+                                            "release_url": release.get("html_url"),
+                                        }
+                    
+                    _LOGGER.warning(
+                        "Firmware version %s for platform %s not found in GitHub releases",
+                        version,
+                        platform,
+                    )
+                    return None
+                    
+        except Exception as err:
+            _LOGGER.error(
+                "Error searching for firmware version %s: %s",
+                version,
+                err,
+            )
+            return None

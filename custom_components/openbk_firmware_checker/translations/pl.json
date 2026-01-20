@@ -5,7 +5,7 @@
         "title": "OpenBK Firmware Checker",
         "description": "Skonfiguruj integrację OpenBK Firmware Checker. Urządzenia będą wykrywane automatycznie przez MQTT.",
         "data": {
-          "update_interval": "Interwał sprawdzania (sekundy)",
+          "update_interval": "Interwał sprawdzania (godziny)",
           "server_url": "Adres URL serwera (opcjonalny, np. http://192.168.1.100:8123)"
         },
         "data_description": {
@@ -22,7 +22,7 @@
       "init": {
         "title": "Opcje OpenBK Firmware Checker",
         "data": {
-          "update_interval": "Interwał sprawdzania (sekundy)",
+          "update_interval": "Interwał sprawdzania (godziny)",
           "server_url": "Adres URL serwera (opcjonalny, np. http://192.168.1.100:8123)"
         },
         "data_description": {

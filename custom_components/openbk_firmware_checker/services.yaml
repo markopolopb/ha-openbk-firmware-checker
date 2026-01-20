@@ -1,0 +1,32 @@
+rollback_firmware:
+  name: Rollback Firmware
+  description: Rollback device to previous firmware version
+  fields:
+    entity_id:
+      name: Entity
+      description: The update entity to rollback
+      required: true
+      selector:
+        entity:
+          domain: update
+          integration: openbk_firmware_checker
+
+install_firmware_version:
+  name: Install Specific Firmware Version
+  description: Install a specific firmware version from GitHub releases
+  fields:
+    entity_id:
+      name: Entity
+      description: The update entity to install firmware on
+      required: true
+      selector:
+        entity:
+          domain: update
+          integration: openbk_firmware_checker
+    version:
+      name: Version
+      description: Firmware version to install (e.g., 1.18.230)
+      required: true
+      example: "1.18.230"
+      selector:
+        text:
